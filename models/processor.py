@@ -3,8 +3,7 @@ import torch
 import torch_geometric.nn as pyg_nn
 from .gin import gin_module
 
-
-class Processor(nn.Module):
+class Processor_legacy(nn.Module):
   def __init__(self, in_channels, out_channels, aggr, layer_norm=False):
     super().__init__()
     self.layer_norm = layer_norm
