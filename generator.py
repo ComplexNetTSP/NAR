@@ -109,7 +109,12 @@ class RandomGraphDataset(Dataset):
             for i in range(self.gen_num_graphs):
                 # go through the raw files and create a graph without the need to generate it again
                 g = nx.read_edgelist(osp.join(self.root, 'raw', 'er_graph_' + str(i) + '.edgelist'), nodetype=int)
-                adj = nx.to_numpy_array(g)
+                #adj = nx.to_numpy_array(g)
+                adj = np.zeros((self.n,self.n))
+                for edge in g.edges():
+                    adj[int(edge[0])][int(edge[1])] = 1
+                    adj[int(edge[1])][int(edge[0])] = 1
+                
                 edges_indexes = self.get_edges_indexes(adj)
                 s = np.random.randint(0, len(adj))
                 pi, probes = bfs(adj, s)
