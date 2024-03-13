@@ -6,20 +6,22 @@ class Loss(nn.Module):
     def __init__(self):
         super(Loss, self).__init__()
 
-    def forward(self, batch, batch_pred: torch.Tensor):
+    def forward(self, hints:torch.tensor, predictions: torch.Tensor, batch: torch.Tensor):
 
         # for every batch find the predicted and true values and send them to the calculate_loss function
         loss_x = 0
         loss_h = 0
-        for i in range(batch.len()):
+        for i in range(hints.size(0)):
             data = batch[i]
-            x = data.reach_h[-1] # true output value
+            x = data[-1] # true output value
             x_pred = batch_pred[i][-1] # predicted output value
-            h_pred = batch_pred[i][:-2] # predicted hint values
-            h = data.reach_h[:len(h_pred)] # true hint values
-            loss_x += F.binary_cross_entropy(x, x_pred)
-            print(loss_x)
-            for i in range(h.size(1)):
-                loss_h += F.binary_cross_entropy(h[:, i], h_pred[:, i])
+            h_pred = batch_pred[i][:-1] # predicted hint values
+            h = data[:len(h_pred)] # true hint values
+            x = x.type(torch.float32)
+            x_pred = x_pred.type(torch.float32)
+            loss_x += F.binary_cross_entropy(x_pred, x)
+            print(h.size())
+            for j in range(h.size(0)):
+                loss_h += F.binary_cross_entropy(h[:, j], h_pred[:, j])
 
         return loss_x, loss_h
