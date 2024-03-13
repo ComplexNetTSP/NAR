@@ -15,6 +15,7 @@ class Graph:
     def __init__(self, n:int, p:float, directed:bool=False, type:str='erdos_renyi'):
         self.n = n # number of nodes
         self.p = p # probability of edge creation
+        print('Generating graph with ' + str(n) + ' nodes and probability ' + str(p))
         if type == 'erdos_renyi':
             self.graph = nx.erdos_renyi_graph(n, p, directed=directed)
         self.adj = nx.to_numpy_array(self.graph)
@@ -70,7 +71,10 @@ class GraphGenerator:
                     pbar.update(1)
 
     def generate_graph(self, i):
-        g = Graph(self.n, self.p, directed=self.directed)
+        n = np.random.randint(self.n[0], self.n[1])
+        p = np.random.uniform(self.p[0], self.p[1])
+        print('Generating graph ' + str(i) + ' with ' + str(n) + ' nodes and probability ' + str(p))
+        g = Graph(n, p, directed=self.directed)
         g.saveRawFile(osp.join(self.path, 'raw', 'er_graph_' + str(i) + '.edgelist'))
 
 #----------------------------------------------------------
@@ -81,7 +85,7 @@ import torch
 
 class RandomGraphDataset(Dataset):
     """A dataset of random graphs with their BFS results saved as torch tensors."""
-    def __init__(self, root: str = "./data", gen_num_graph: int = 100, n: int = 10, p: float = 0.01, directed: bool = False, transform=None, pre_transform=None):
+    def __init__(self, n, p, root: str = "./data", gen_num_graph: int = 100, directed: bool = False, transform=None, pre_transform=None):
         self.n = n
         self.p = p
         self.directed = directed
