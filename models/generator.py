@@ -19,7 +19,7 @@ class Graph:
             self.graph = nx.erdos_renyi_graph(n, p, directed=directed)
         self.adj = nx.to_numpy_array(self.graph)
         self.edges_indexes = self.get_edges_indexes(self.adj)
-    
+
     def get_edges_indexes(self, A):
         edge_indexes = [[],[]]
         """Create a 2x1 list of lists to store the indexes of the edges in the adjacency matrix."""
@@ -70,7 +70,10 @@ class GraphGenerator:
                     pbar.update(1)
 
     def generate_graph(self, i):
-        g = Graph(self.n, self.p, directed=self.directed)
+        # get n and p from the arrays if they are arrays or just use the values
+        n = np.random.randint(self.n[0], self.n[1]) if self.n.size > 1 else int(self.n)
+        p = np.random.uniform(self.p[0], self.p[1]) if self.p.size > 1 else float(self.p)
+        g = Graph(n, p, directed=self.directed)
         g.saveRawFile(osp.join(self.path, 'raw', 'er_graph_' + str(i) + '.edgelist'))
 
 #----------------------------------------------------------
@@ -81,7 +84,7 @@ import torch
 
 class RandomGraphDataset(Dataset):
     """A dataset of random graphs with their BFS results saved as torch tensors."""
-    def __init__(self, root: str = "./data", gen_num_graph: int = 100, n: int = 10, p: float = 0.01, directed: bool = False, transform=None, pre_transform=None):
+    def __init__(self, n, p, root: str = "./data", gen_num_graph: int = 100, directed: bool = False, transform=None, pre_transform=None):
         self.n = n
         self.p = p
         self.directed = directed
@@ -110,22 +113,29 @@ class RandomGraphDataset(Dataset):
                 # go through the raw files and create a graph without the need to generate it again
                 g = nx.read_edgelist(osp.join(self.root, 'raw', 'er_graph_' + str(i) + '.edgelist'), nodetype=int)
                 #adj = nx.to_numpy_array(g)
-                adj = np.zeros((self.n,self.n))
-                for edge in g.edges():
-                    adj[int(edge[0])][int(edge[1])] = 1
-                    adj[int(edge[1])][int(edge[0])] = 1
+                # create the graph from the edgelist
+                g = nx.from_edgelist(g.edges())
+                adj = nx.to_numpy_array(g)
+                # adj = np.zeros((self.n,self.n))
+                # for edge in g.edges():
+                #     adj[int(edge[0])][int(edge[1])] = 1
+                #     adj[int(edge[1])][int(edge[0])] = 1
                 
                 edges_indexes = self.get_edges_indexes(adj)
-                s_ = np.random.randint(0, len(adj))
-                s = np.zeros(len(adj))
-                s[s_] = 1
-                pi, probes = bfs(adj, s_)
+                s = np.random.randint(0, len(adj))
+                pi, probes = bfs(adj, s)
                 pi_h = probes['hint']['node']['pi_h']['data']
                 reach_h = probes['hint']['node']['reach_h']['data']
                 pi = self.get_edges(adj, pi)
                 pi_h = np.array([self.get_edges(adj, x) for x in pi_h])
                 pos = np.arange(0, len(adj))/len(adj)
                 length = (pi_h).shape[0]
+
+                # create a zeros array and 1 in the position of the node that the algorithm starts
+                tmp = np.zeros(len(adj))
+                tmp[s] = 1
+                s = tmp
+
                 dict = {'edge_index': edges_indexes, 'pos': pos, 'length': length, 's': s, 'pi': pi, 'reach_h': reach_h, 'pi_h': pi_h}
                 dict = {k: self.to_torch(v) for k,v in dict.items()}
                 dict['hints'] = np.array(['reach_h', 'pi_h'])
