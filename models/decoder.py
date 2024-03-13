@@ -19,6 +19,9 @@ class Decoder(nn.Module):
         self.lin = nn.Linear(hidden_dim*2, output_dim)
 
     def forward(self, x1, x2):
-        # Concatenate the inputs along a specified dimension
+        # Concatenate the inputs along a specified dimension)
         concatenated_input = torch.cat((x1, x2), dim=1)
         return self.lin(concatenated_input)
+
+    def forward(self, x1):
+        return self.lin(torch.nn.Sigmoid()(x1))
