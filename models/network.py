@@ -1,30 +1,65 @@
-import torch 
-import torch.nn
-from .processor import Processor
-from .encoder import Encoder
+import torch
+from torch import nn
+from encoder import Encoder
+from decoder import Decoder
+from mpnn import MPNN
+from torch.functional import F
 
-class EncodeProcessDecode(torch.nn.Module):
-  def __init__(self, hidden_channels, aggr):
-    super(EncodeProcessDecode, self).__init__()
-    input_channel_dim  = 3 * hidden_channels + 1
-    self.processor = Processor(input_channel_dim, hidden_channels, aggr=aggr)
-    self.encoder = Encoder(hidden_channels)
+class Network(nn.Module):
+    def __init__(self, latent_dim=128):
+        super(Network, self).__init__()
+        self.encoder = Encoder(2, latent_dim)
+        self.encoder_bn = nn.BatchNorm1d(latent_dim)
+        self.processor = MPNN(latent_dim*2, latent_dim)
+        self.processor_bn = nn.BatchNorm1d(latent_dim)
+        self.decoder = Decoder(latent_dim, 1)
+
+    def forward(self, batch, max_iter=10):
+        input = torch.stack((batch.pos, batch.s), dim=1).float()
+        h = torch.zeros(input.size(0), 128) # hidden state from the processor
+        hints = batch.pi_h[1:] # hints if an edge was passed or not
+        true_output = batch.pi # true_output for all the edges if they were passed or not at the end.
+        max_iter = hints.size(0)+1
+        predictions = torch.zeros(max_iter, batch.pi.size(0))
+        predictions_y = torch.zeros(max_iter, batch.s.size(0))
+        hints_reach = batch.reach_h[1:] # hints from the reachability
+        true_output_reach = batch.reach_h[-1] # true_output expected from the reachability
+        for i in range(max_iter):
+            z = self.encoder(input) # the encoded input
+            #z = self.encoder_bn(z) # batch normalization
+            processor_input = torch.cat([z, h], dim=1) # the input to the processor
+            h = self.processor(processor_input, batch.edge_index.long()) # the output of the processor
+            #h = self.processor_bn(h) # batch normalization
+            decoder_input = torch.cat((h[batch.edge_index[0]], h[batch.edge_index[1]]), dim=1)
+            alpha = self.decoder(decoder_input).view(batch.pi.size(0))
+
+            predictions[i] = alpha.view(batch.pi.size(0))
+
+            y = torch.zeros((len(batch.s)))
+            for node_index in np.arange(0, len(batch.s)):
+                alpha_max_proba = alpha[torch.logical_or(batch.edge_index[0] == node_index, batch.edge_index[1] == node_index)].max()
+                #print(alpha_max_proba)
+                if alpha_max_proba.item() >= 0.8:
+                    #print(alpha_max_proba)
+                    y[node_index] = 1
+            predictions_y[i] = y
+
+            input = torch.stack((batch.pos, y), dim=1).float() # we update the input with the new state
+
+        loss = self.calculate_loss(hints, predictions, true_output)
+        y_loss = self.calculate_loss(hints_reach, predictions_y, true_output_reach)
+        return y, loss, y_loss
     
-  def stack_hidden(input_hidden, hidden, last_hidden):
-    return torch.cat([input_hidden, hidden, last_hidden], dim=-1)
-  
-  def forward(self, batch):
-    # batch[0]: node position 
-    # batch[1]: node features
-    max_iter = batch.length.item()
-    pos = batch.pos
-    input_hidden = self.encoder(batch.s)
-    hidden = input_hidden
-    # iterate over the algorithm steps (example: number of step to perform a BFS)
-    for step in range(max_iter):
-      last_hidden = hidden
-      hidden = self.processor(input_hidden, hidden, last_hidden, edge_index=batch.edge_index, pos=pos)
-      # test of the algorithm is finished
-      if max_iter == step + 1:
-        output_step = self.decoder(self.stack_hidden(input_hidden, hidden, last_hidden))
-    return output_step, hidden, pos
+    def calculate_loss(self, hints, predictions, true_output):
+        loss_x = F.binary_cross_entropy(predictions[-1], true_output.type(torch.float))
+        loss_h = 0
+        for i in range(hints.size(0)):
+            loss_h += F.binary_cross_entropy(predictions[i], hints[i].type(torch.float))
+        return loss_x, loss_h
+    
+    # def calculate_y_loss(self, hints, predictions, true_output):
+    #     loss_y = torch.tensor(0) if torch.all(predictions[-1] == true_output) else torch.tensor(1)
+    #     loss_h = torch.tensor(0) # Initialize loss_h as a tensor
+    #     for i in range(hints.size(0)):
+    #         loss_h += torch.tensor(0) if torch.all(predictions[i] == hints[i]) else torch.tensor(1)
+    #     return loss_y, loss_h
