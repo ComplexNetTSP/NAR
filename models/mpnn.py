@@ -11,9 +11,9 @@ class MPNN(MessagePassing):
     self.activation = activation
 
     self.mlp = torch.nn.Sequential(
-        Linear(hidden_channels, hidden_channels),
-        torch.nn.ReLU(),
-        Linear(hidden_channels, self.hidden_channels)
+        torch.nn.Linear(self.hidden_channels, self.hidden_channels),  # Linear layer with hidden_channels input and hidden_channels output
+        torch.nn.ReLU(),                                   # ReLU activation function
+        torch.nn.Linear(self.hidden_channels, self.hidden_channels)  # Linear layer with hidden_channels input and self.hidden_channels output
     )
     
   def forward(self, x, edge_index):
