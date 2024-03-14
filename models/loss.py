@@ -6,14 +6,16 @@ class Loss(nn.Module):
     def __init__(self):
         super(Loss, self).__init__()
 
-    def forward(self, hints:torch.tensor, predictions: torch.Tensor, batch: torch.Tensor):
+    def forward(self, hints:torch.tensor, predictions: torch.Tensor, trueOutput: torch.Tensor):
 
         # for every batch find the predicted and true values and send them to the calculate_loss function
         loss_x = 0
         loss_h = 0
+        
+
         for i in range(hints.size(0)):
             data = batch[i]
-            x = data[-1] # true output value
+            x = trueOutput
             x_pred = batch_pred[i][-1] # predicted output value
             h_pred = batch_pred[i][:-1] # predicted hint values
             h = data[:len(h_pred)] # true hint values
