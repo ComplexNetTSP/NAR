@@ -36,7 +36,7 @@ class Network(nn.Module):
             predictions[i] = alpha.view(batch.pi.size(0))
 
             y = torch.zeros((len(batch.s)))
-            for node_index in np.arange(0, len(batch.s)):
+            for node_index in range(0, len(batch.s)):
                 alpha_max_proba = alpha[torch.logical_or(batch.edge_index[0] == node_index, batch.edge_index[1] == node_index)].max()
                 #print(alpha_max_proba)
                 if alpha_max_proba.item() >= 0.8:
@@ -56,10 +56,3 @@ class Network(nn.Module):
         for i in range(hints.size(0)):
             loss_h += F.binary_cross_entropy(predictions[i], hints[i].type(torch.float))
         return loss_x, loss_h
-    
-    # def calculate_y_loss(self, hints, predictions, true_output):
-    #     loss_y = torch.tensor(0) if torch.all(predictions[-1] == true_output) else torch.tensor(1)
-    #     loss_h = torch.tensor(0) # Initialize loss_h as a tensor
-    #     for i in range(hints.size(0)):
-    #         loss_h += torch.tensor(0) if torch.all(predictions[i] == hints[i]) else torch.tensor(1)
-    #     return loss_y, loss_h
