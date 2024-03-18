@@ -120,10 +120,15 @@ class RandomGraphDataset(Dataset):
                 # for edge in g.edges():
                 #     adj[int(edge[0])][int(edge[1])] = 1
                 #     adj[int(edge[1])][int(edge[0])] = 1
-                
                 edges_indexes = self.get_edges_indexes(adj)
                 s = np.random.randint(0, len(adj))
                 pi, probes = bfs(adj, s)
+
+                bfs_predecessors = dict(nx.bfs_predecessors(g, s))
+                parents = np.full(len(adj), -1)
+                for child, parent in bfs_predecessors.items():
+                    parents[int(child)] = int(parent)
+
                 pi_h = probes['hint']['node']['pi_h']['data']
                 reach_h = probes['hint']['node']['reach_h']['data']
                 pi = self.get_edges(adj, pi)
@@ -136,12 +141,12 @@ class RandomGraphDataset(Dataset):
                 tmp[s] = 1
                 s = tmp
 
-                dict = {'edge_index': edges_indexes, 'pos': pos, 'length': length, 's': s, 'pi': pi, 'reach_h': reach_h, 'pi_h': pi_h}
-                dict = {k: self.to_torch(v) for k,v in dict.items()}
-                dict['hints'] = np.array(['reach_h', 'pi_h'])
-                dict['inputs'] = np.array(['pos', 's'])
-                dict['outputs'] = np.array(['pi'])
-                tensor = CLRSData(**dict)
+                dict_ = {'edge_index': edges_indexes, 'pos': pos, 'length': length, 's': s, 'pi': pi, 'reach_h': reach_h, 'pi_h': pi_h, 'parents': parents}
+                dict_ = {k: self.to_torch(v) for k,v in dict_.items()}
+                dict_['hints'] = np.array(['reach_h', 'pi_h'])
+                dict_['inputs'] = np.array(['pos', 's'])
+                dict_['outputs'] = np.array(['pi'])
+                tensor = CLRSData(**dict_)
 
                 if self.pre_transform is not None:
                     tensor = self.pre_transform(tensor)
