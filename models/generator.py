@@ -120,7 +120,8 @@ class RandomGraphDataset(Dataset):
                 # for edge in g.edges():
                 #     adj[int(edge[0])][int(edge[1])] = 1
                 #     adj[int(edge[1])][int(edge[0])] = 1
-                edges_indexes = self.get_edges_indexes(adj)
+                #edges_indexes = self.get_edges_indexes(adj)
+                edges_indexes = torch.tensor(list(g.edges)).t().contiguous()
                 s = np.random.randint(0, len(adj))
                 pi, probes = bfs(adj, s)
 
