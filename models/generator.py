@@ -115,6 +115,13 @@ class RandomGraphDataset(Dataset):
                 #adj = nx.to_numpy_array(g)
                 # create the graph from the edgelist
                 g = nx.from_edgelist(g.edges())
+
+                max_node = max([int(x) for x in g.nodes()])
+                # add missing nodes to g to be able to use the bfs_predecessors function
+                for m in range(max_node):
+                    if m not in g.nodes():
+                        g.add_node(m)
+
                 adj = nx.to_numpy_array(g)
                 # adj = np.zeros((self.n,self.n))
                 # for edge in g.edges():
@@ -124,6 +131,8 @@ class RandomGraphDataset(Dataset):
                 edges_indexes = torch.tensor(list(g.edges)).t().contiguous()
                 s = np.random.randint(0, len(adj))
                 pi, probes = bfs(adj, s)
+
+                # get maximum number of node in the graph
 
                 bfs_predecessors = dict(nx.bfs_predecessors(g, s))
                 parents = np.full(len(adj), -1)
