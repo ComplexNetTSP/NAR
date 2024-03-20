@@ -1,90 +1,75 @@
 import torch
 
-def train(model, train_dataset, validation_dataset=None, optimizer=None, epochs=10, batch_size=32):
+def train(model, train_dataset, validation_dataset=None, optimizer=None, epochs=10, batch_size=5):
     x_loss_weight = 0.5
     h_loss_weight = 1 - x_loss_weight
-    
-    # Lists to store losses
-    train_losses = []
-    val_losses = []
-    y_losses = []
-    y_val_losses = []
-    
-    # Training loop
+
+    loss_edges_train, loss_reach_train, loss_parents_train = [], [], []
+    loss_edges_val, loss_reach_val, loss_parents_val = [], [], []
+
     for epoch in range(epochs):
-        model.train()  # Set the model to train mode
-        epoch_loss = 0
-        epoch_y_loss = 0
+        batch_count = len(train_dataset) // batch_size
         
-        # Batch-wise training
-        for i in range(0, len(train_dataset), batch_size):
-            batch_graphs = train_dataset[i:i+batch_size]
-            
-            optimizer.zero_grad()  # Zero gradients
-            
-            batch_loss = 0
-            batch_y_loss = 0
-            
-            for graph in batch_graphs:
-                y, loss, y_loss = model(graph)
-                loss_x, loss_hints = loss[0], loss[1]
-                y_loss_x, y_loss_hints = y_loss[0], y_loss[1]
-                
-                batch_loss += x_loss_weight * loss_x + h_loss_weight * loss_hints
-                batch_y_loss += x_loss_weight * y_loss_x + h_loss_weight * y_loss_hints
-            
-            batch_loss /= len(batch_graphs)  # Average loss over batch
-            batch_y_loss /= len(batch_graphs)  # Average y loss over batch
-            
-            batch_loss.backward()  # Backpropagation
-            optimizer.step()  # Optimizer step
-            
-            epoch_loss += batch_loss.item()
-            epoch_y_loss += batch_y_loss.item()
+        cumulated_loss_edges_epoch, cumulated_loss_reach_epoch, cumulated_loss_parents_epoch = 0, 0, 0
 
-        # Average losses over all batches
-        epoch_loss /= (len(train_dataset) // batch_size)
-        epoch_y_loss /= (len(train_dataset) // batch_size)
-                
-        # Append losses to respective lists
-        train_losses.append(epoch_loss)
-        y_losses.append(epoch_y_loss)
-        
-        # Validation
+        for i in range(batch_count):
+            model.train()
+            cumulated_loss_edges, cumulated_loss_reach, cumulated_loss_parents = 0, 0, 0
+            for j in range(i*batch_size, (i+1)*batch_size):
+                graph = train_dataset[j] 
+                loss_edges, loss_reach, loss_parents = model(graph)
+                loss_edges_output, loss_edges_hints = loss_edges[0], loss_edges[1] # loss for the edges
+
+                cumulated_loss_edges += x_loss_weight * loss_edges_output + h_loss_weight * loss_edges_hints
+                cumulated_loss_reach += loss_reach
+                cumulated_loss_parents += loss_parents
+
+            cumulated_loss_edges /= batch_size
+            cumulated_loss_reach /= batch_size
+            cumulated_loss_parents /= batch_size
+            
+            optimizer.zero_grad()
+            cumulated_loss_edges.backward()
+            optimizer.step()
+
+            cumulated_loss_edges_epoch += cumulated_loss_edges
+            cumulated_loss_reach_epoch += cumulated_loss_reach
+            cumulated_loss_parents_epoch += cumulated_loss_parents
+
+        # Convert tensors to lists and append to the respective lists
+        loss_edges_train.append(cumulated_loss_edges_epoch.item() / batch_count)
+        loss_reach_train.append(cumulated_loss_reach_epoch.item() / batch_count)
+        loss_parents_train.append(cumulated_loss_parents_epoch.item() / batch_count)
+
         if validation_dataset:
-            model.eval()  # Set the model to evaluation mode
-            cumulated_loss_val = 0
-            cumulated_y_loss_val = 0
-            
+            model.eval()
             with torch.no_grad():
-                for graph in validation_dataset:
-                    y, loss, y_loss = model(graph)
-                    loss_x, loss_hints = loss[0], loss[1]
-                    y_loss_x, y_loss_hints = y_loss[0], y_loss[1]
-                    
-                    cumulated_loss_val += x_loss_weight * loss_x + h_loss_weight * loss_hints
-                    cumulated_y_loss_val += x_loss_weight * y_loss_x + h_loss_weight * y_loss_hints
-            
-            # Average losses over validation dataset
-            cumulated_loss_val /= len(validation_dataset)
-            cumulated_y_loss_val /= len(validation_dataset)
-            
-            print(f'Epoch {epoch+1}, loss {epoch_loss:.4f}, validation loss {cumulated_loss_val:.4f} || '
-                  f'y_loss {epoch_y_loss:.4f}, validation y_loss {cumulated_y_loss_val:.4f}')
-            
-            val_losses.append(cumulated_loss_val.item())
-            y_val_losses.append(cumulated_y_loss_val.item())
+                cumulated_loss_edges_val, cumulated_loss_reach_val, cumulated_loss_parents_val = 0, 0, 0
+                for k in range(len(validation_dataset)):
+                    graph = validation_dataset[k]
+                    loss_edges, loss_reach, loss_parents = model(graph)
+                    loss_edges_output, loss_edges_hints = loss_edges[0], loss_edges[1] # loss for the edges
 
-        else:
-            print(f'Epoch {epoch+1}, loss {epoch_loss:.4f} || y_loss {epoch_y_loss:.4f}')  
+                    cumulated_loss_edges_val += x_loss_weight * loss_edges_output + h_loss_weight * loss_edges_hints
+                    cumulated_loss_reach_val += loss_reach
+                    cumulated_loss_parents_val += loss_parents 
+
+                cumulated_loss_edges_val /= len(validation_dataset)
+                cumulated_loss_reach_val /= len(validation_dataset)
+                cumulated_loss_parents_val /= len(validation_dataset)
+
+                loss_edges_val.append(cumulated_loss_edges_val.item())
+                loss_reach_val.append(cumulated_loss_reach_val.item())
+                loss_parents_val.append(cumulated_loss_parents_val.item())
+
+                print(f'Epoch {epoch}, loss_edges {cumulated_loss_edges_epoch.item() / batch_count}, loss_reach {cumulated_loss_reach_epoch.item() / batch_count}, loss_parents {cumulated_loss_parents_epoch.item() / batch_count}, loss_edges_val {cumulated_loss_edges_val.item()}, loss_reach_val {cumulated_loss_reach_val.item()}, loss_parents_val {cumulated_loss_parents_val.item()}')
         
-        # Early stopping
-        if len(val_losses) > 5:
-            if all(val_losses[-1] > val_losses[i] for i in range(-2, -6, -1)):
-                print('Early stopping')
-                break
-    
-    return train_losses, val_losses, y_losses, y_val_losses
+        else:
+            print(f'Epoch {epoch}, loss_edges {cumulated_loss_edges_epoch.item() / batch_count}, loss_reach {cumulated_loss_reach_epoch.item() / batch_count}, loss_parents {cumulated_loss_parents_epoch.item() / batch_count}')
+
+    if validation_dataset:
+        return loss_edges_train, loss_reach_train, loss_parents_train, loss_edges_val, loss_reach_val, loss_parents_val
+    return loss_edges_train, loss_reach_train, loss_parents_train
 
 # MAIN ----------------------------------------------------------------------------------------------------
 import torch

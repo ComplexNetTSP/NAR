@@ -78,7 +78,13 @@ class GraphGenerator:
 
 #----------------------------------------------------------
 # CLASS RandomGraphDataset
-from clrs._src.algorithms.graphs import bfs
+while True:
+    try:
+        from clrs._src.algorithms.graphs import bfs
+        break  # Exit the loop if import is successful
+    except Exception as e:
+        continue
+
 import glob
 import torch
 
