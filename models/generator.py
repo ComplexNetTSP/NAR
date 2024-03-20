@@ -129,7 +129,6 @@ class RandomGraphDataset(Dataset):
 
                 adj = nx.to_numpy_array(g)
                 node_index = [int(x) for x in g.nodes()]
-                print(g.nodes())
                 # correcting adj
                 permutation = [node_index.index(i) for i in range(len(node_index))]
                 adj = adj[:, permutation][permutation, :]
