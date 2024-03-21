@@ -87,6 +87,7 @@ while True:
 
 import glob
 import torch
+import time
 
 class RandomGraphDataset(Dataset):
     """A dataset of random graphs with their BFS results saved as torch tensors."""
@@ -107,7 +108,8 @@ class RandomGraphDataset(Dataset):
     
     def download(self):
         """Creates an instance of the graph generator and generates the graphs."""
-        gen = GraphGenerator(n=self.n, p=self.p, root=self.root, num_graphs=self.gen_num_graphs, directed=self.directed) 
+        print(f"Using {os.cpu_count()} CPU cores")
+        gen = GraphGenerator(n=self.n, p=self.p, root=self.root, num_graphs=self.gen_num_graphs, directed=self.directed, max_workers=os.cpu_count())
         gen.generate()
            
     def process(self):
@@ -116,40 +118,54 @@ class RandomGraphDataset(Dataset):
 
         with tqdm(total=self.gen_num_graphs) as pbar:
             for i in range(self.gen_num_graphs):
-
+                
                 g = nx.read_edgelist(osp.join(self.root, 'raw', 'er_graph_' + str(i) + '.edgelist'), nodetype=int)
-
                 g = nx.from_edgelist(g.edges())
 
-                max_node = max(g.nodes(), default=0)
+                start_time = time.time()
+                max_node = np.max(np.array(list(g.nodes())), initial=0)
 
+
+                start_time = time.time()
                 for m in range(int(max_node)+1):
                     if int(m) not in g.nodes():
                         g.add_node(str(m))
 
-                adj = nx.to_numpy_array(g)
-                node_index = [int(x) for x in g.nodes()]
-                # correcting adj
-                permutation = [node_index.index(i) for i in range(len(node_index))]
-                adj = adj[:, permutation][permutation, :]
 
-                edges_list_int = [(int(u), int(v)) for u, v in list(g.edges())]
-                edges_list_int = edges_list_int + [(v, u) for u, v in edges_list_int]
-                edge_index = torch.tensor(edges_list_int).t().contiguous()
-                edge_index
+                adj = nx.to_numpy_array(g)
+                node_index = np.array(list(g.nodes()))
+
+                start_time = time.time()
+                # Reordering adjacency matrix
+                permutation = np.argsort(node_index)
+                adj = adj[permutation][:, permutation]
+
+
+                start_time = time.time()
+                edges = list(g.edges())
+                edges_list_int = [(int(u), int(v)) for u, v in edges]
+                edges_list_int.extend([(v, u) for u, v in edges_list_int])
+                edge_index = torch.tensor(edges_list_int, dtype=torch.long).t().contiguous()
+
 
                 s = np.random.randint(0, len(adj)) # randomly choosing a starting node in the graph
 
+
                 pi, probes = bfs(adj, s) # calculating the breadth first search
 
-                pi_h = probes['hint']['node']['pi_h']['data'] # parents hints
 
+                pi_h = probes['hint']['node']['pi_h']['data'] # parents hints
+                
+                start_time = time.time()
                 edges = self.get_edges(pi, edge_index) # edges that have been traversed
+
+
+                start_time = time.time()
                 edges_h = np.array([self.get_edges(x, edge_index) for x in pi_h]) # edges traversed hints
 
                 reach_h = probes['hint']['node']['reach_h']['data']
                 
-                pos = np.arange(0, len(adj)) / len(adj) # position of nodes (between 0 and 1)
+                pos = np.arange(len(adj)) / len(adj) # position of nodes (between 0 and 1)
                 length = edge_index.shape[1] # number of edges
 
                 tmp = np.zeros(len(adj))
@@ -165,7 +181,9 @@ class RandomGraphDataset(Dataset):
 
                 if self.pre_transform is not None:
                     tensor = self.pre_transform(tensor)
+
                 torch.save(tensor, osp.join(self.root, 'processed', f'data{i}.pt'))
+
                 pbar.update(1)
 
         
@@ -177,21 +195,39 @@ class RandomGraphDataset(Dataset):
         """Returns the idx-th graph in the dataset. (Tensor)"""
         data = torch.load(osp.join(self.root, 'processed', 'data' + str(idx) + '.pt'))
         return data
-        
+
     def get_edges(self, pi, edge_index):
-        edges = np.zeros_like(edge_index[0])
-        for i in range(len(pi)):
-            src = pi[i]
-            des = i 
-            if src != des:
-                edges[self.find_edge_index(edge_index, src, des)] = 1
+        n = len(pi)
+        src = np.array(pi)
+        des = np.arange(n)
+        mask = src != des
+        src = src[mask]
+        des = des[mask]
+        indices = self.find_edge_indices(edge_index, src, des)
+        edges = np.zeros(edge_index.shape[1], dtype=np.float32)
+        edges[indices] = 1
         return edges
+
+    def find_edge_indices(self, edge_index, src, des):
+        src_mask = np.in1d(edge_index[0], src)
+        des_mask = np.in1d(edge_index[1], des)
+        mask = np.logical_and(src_mask, des_mask)
+        return np.where(mask)[0]
+        
+    # def get_edges(self, pi, edge_index):
+    #     edges = np.zeros_like(edge_index[0])
+    #     for i in range(len(pi)):
+    #         src = pi[i]
+    #         des = i 
+    #         if src != des:
+    #             edges[self.find_edge_index(edge_index, src, des)] = 1
+    #     return edges
     
-    def find_edge_index(self, edge_index, src, des):
-        for idx, (s, d) in enumerate(zip(edge_index[0], edge_index[1])):
-            if s == src and d == des:
-                return idx
-        raise Exception
+    # def find_edge_index(self, edge_index, src, des):
+    #     for idx, (s, d) in enumerate(zip(edge_index[0], edge_index[1])):
+    #         if s == src and d == des:
+    #             return idx
+    #     raise Exception
 
     def to_torch(self, value):
         """Transforms a numpy array into a torch tensor."""
