@@ -10,7 +10,7 @@ The core focus lies in utilizing the NAR architecture to emulate the functionali
 - Evaluation of NAR's efficacy using synthetic datasets generated through Erdos-Renyi and Barabasi-Albert models.
 
 ### Repository Contents
-- **Model**: Contains the implementation of the NAR network architecture along with its constituent elements (Encoder-Processor-Decoder).
+- **Model**: Contains the implementation of the NAR network architecture (Encoder-Processor-Decoder).
 - **generator**: Houses a synthetic dataset generator designed to produce datasets for both training and testing the NAR model.
 
 ### Contributors
