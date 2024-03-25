@@ -12,23 +12,22 @@ class MPNN(MessagePassing):
 
     self.mlp = torch.nn.Sequential(
         torch.nn.Linear(self.hidden_channels, self.hidden_channels),  # Linear layer with hidden_channels input and hidden_channels output
-        torch.nn.ReLU(),                                   # ReLU activation function
-        torch.nn.Linear(self.hidden_channels, self.hidden_channels)  # Linear layer with hidden_channels input and self.hidden_channels output
+        torch.nn.ReLU(),                                              # ReLU activation function
+        torch.nn.Linear(self.hidden_channels, self.hidden_channels)   # Linear layer with hidden_channels input and self.hidden_channels output
     )
     
   def forward(self, x, edge_index):
-    out = self.propagate(edge_index, x=x)
-    out = self.mlp(out)
-    if self.activation is not None:
-      out = self.activation(out)
-    return out
+      device = next(self.parameters()).device  # Get the device of the model parameters
+      x = x.to(device)
+      edge_index = edge_index.to(device)
+
+      out = self.propagate(edge_index, x=x)
+      out = self.mlp(out)
+      if self.activation is not None:
+          out = self.activation(out)
+      return out
     
   def message(self, x_i, x_j):
-    # x_i has shape [E, in_channels]
-    # x_j has shape [E, in_channels]
-    #print('MPNN => xi, xj', x_i.size(), x_j.size())
-    tmp = torch.cat([x_i, x_j], dim=1)  # tmp has shape [E, 2 * in_channels]
-    #print('MPNN => messages IN', tmp.size())
+    tmp = torch.cat([x_i, x_j], dim=1) 
     m = self.messages(tmp)
-    #print('MPNN => messages OUT', m.size())
     return m

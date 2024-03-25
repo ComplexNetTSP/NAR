@@ -3,3 +3,4 @@ store
 data
 __pycache__
 archive
+*.pth

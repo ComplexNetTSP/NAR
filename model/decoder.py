@@ -10,9 +10,7 @@ class Decoder(nn.Module):
 
     def forward(self, x1, x2=None):
         if x2 is not None:
-            # Concatenate the inputs along the specified dimension
             concatenated_input = torch.cat((x1, x2), dim=1)
             return self.lin(concatenated_input)
         else:
-            # If only one input is given, apply sigmoid directly to it
             return self.sigmoid(self.lin(x1))
